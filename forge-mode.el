@@ -23,7 +23,7 @@
   "*forge-gradle*"
   "The gradle output buffer")
 
-(defcustom forge-debugger-buffer-name
+(defcustom forge-jdb-buffer-name
   "*forge-dbg*"
   "The java debugger buffer")
 
@@ -44,89 +44,95 @@
   "Key binding for the forge-debug-server function")
 
 (defcustom forge-gradle-bin
-  "echo";"./gradlew"
+  "echo ./gradlew"
   "The gradle wrapper script in the main project directory")
 
 (defcustom forge-jdb-bin
-  "echo";"jdb"
+  "echo jdb"
   "The java debugger binary")
 
 (defcustom forge-jdb-address
   "5005"
   "The address to which jdb should attach, this is set by gradle when running in debug mode")
 
-(defvar current-gradle-process
+(defvar current-gradle-w
   nil
-  "The gradle command currently runnning, this avoids changing things while a task is running")
+  "The gradle window")
 
-(defvar current-debugger-instance
+(defvar current-jdb-w
   nil
-  "The current debugger process instance")
+  "The jdb window")
 
-(defun debug ()
-  (interactive)
-  (let* ((top-window (frame-root-window))
-	 (split-one-third (* 2 (/ (window-body-height top-window t) 3)))
-	 (split-half (/ (window-body-width top-window) 2))
-	 (w1 (split-window top-window split-one-third 'below))
-	 (w2 (split-window w1 split-half 'right))
-	 (b1 (get-buffer-create "buffer a"))
-	 (b2 (get-buffer-create "buffer b")))
-    (progn
-      (set-window-buffer w1 b1)
-      (set-window-buffer w2 b2))))
+(defun forge-create-popup ()
+  "Create a window that can accomodate a forge buffer, the window is created from an existing forge window
+if valid, otherwise the top level window is split"
+  (if (window-valid-p current-gradle-w)
+      (split-window current-gradle-w nil 'left)
+    (if (window-valid-p current-jdb-w)
+	(split-window current-jdb-w nil 'right)
+      (let* ((top (frame-root-window))
+	     (two-thirds (* 2 (/ (window-total-height top) 3))))
+	(split-window top two-thirds 'below)))))
 
-(defun forge-create-window ()
-  "Create a new window by splitting the root window leaving 2/3 of the frame to the root,
-if a forge buffer is already visible split it and use half for the new window"
-  (let* ((top-window (frame-root-window))
-	 (split-one-third (* 2 (/ (window-body-height top-window t) 3)))
-	 (debugger-win (get-buffer-window forge-debugger-buffer-name))
-	 (gradle-win (get-buffer-window forge-gradle-buffer-name)))
-    (if (null debugger-win)
-	(split-window top-window split-one-third 'below)
-      (let ((split-half (/ (window-body-width debugger-win) 2)))
-	(split-window debugger-win split-half 'right)))
-    (let ((split-half (/ (window-body-width gradle-win) 2)))
-      (split-window gradle-win split-half 'right))))
 
-(defun forge-display-buffer (buffer-name)
-  "Display a buffer in a window if not window shows it"
-  (let ((buffer-in-window (get-buffer-window buffer-name)))
-    (if (null buffer-in-window)
-	(set-window-buffer (forge-create-window) buffer-name)
-      nil)))
+(defun forge-enable-gradle (buffer-name)
+  "Make window for the gradle output buffer if needed and pop the buffer there"
+  (if (window-valid-p current-gradle-w) ; if a previously created window exists
+      (set-window-buffer current-gradle-w buffer-name) ; just set the buffer
+    (let ((gradle-w (get-buffer-window buffer-name))) ; else 
+      (if (null gradle-w) ; check the window that contains the buffer we want to display
+	  (let ((win (forge-create-popup))) ; if it does not exist, create a new window and return it
+	    (setq current-gradle-w win)
+	    (set-window-buffer win buffer-name))
+	  (setq current-gradle-w gradle-w))))) ; if it exists, store it and return
+  
+
+(defun forge-enable-jdb (buffer-name)
+  "Make window for the jdb in-out buffer if needed and pop the buffer there"
+  (if (window-valid-p current-jdb-w)
+      (set-window-buffer current-jdb-w buffer-name)
+    (let ((win (forge-create-popup)))
+      (set-window-buffer win buffer-name)
+      (setq current-jdb-w win))))
 
 (defun exec-gradle-task (command)
   "Execute a gradle task in the forge gradle temporary buffer"
   (let ((process-handle "forge-gradle")
 	(gradle-command (concat forge-gradle-bin " " command)))
-    (start-process-shell-command process-handle forge-gradle-buffer-name gradle-command)
-    (forge-display-buffer forge-gradle-buffer-name)))
+    (start-process-shell-command process-handle forge-gradle-buffer-name gradle-command)))
 
 (defun exec-debugger-task ()
   "Execute jdb and attach to the address initialised by gradle"
   (let ((process-handle "forge-jdb")
 	(jdb-command (concat forge-jdb-bin " attach " forge-jdb-address)))
-    (start-process-shell-command process-handle forge-debugger-buffer-name jdb-command)
-    (forge-display-buffer forge-debugger-buffer-name)))
+    (start-process-shell-command process-handle forge-debugger-buffer-name jdb-command)))
 
 (defun forge-run-client ()
   "Run minecraft client and load the mod"
   (interactive)
-  (progn (exec-gradle-task "runClient")
-	 (exec-debugger-task)))
+  (progn
+    (get-buffer-create forge-gradle-buffer-name)
+    (forge-enable-gradle forge-gradle-buffer-name)
+    (exec-gradle-task "runClient")))
 
-(defun forge-debug ()
+(defun forge-debug-client ()
   "Run the minecraft client in debug mode and attach the debugger in a separate comint buffer"
   (interactive)
-  (exec-gradle-task "debugClient"))
+  (progn
+    (forge-init-buffers)
+    (exec-gradle-task "runClient --debug-jvm")
+    (exec-debugger-task)))
+  
 
 (defun forge-run-srv ()
   nil)
 
 (defun forge-debug-srv ()
   nil)
+
+
+;; define a comint mode to control the debugger input
+
 
 
 (define-minor-mode forge-mode
