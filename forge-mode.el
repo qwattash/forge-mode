@@ -51,9 +51,10 @@
   "echo jdb"
   "The java debugger binary")
 
-(defcustom forge-jdb-address
-  "5005"
-  "The address to which jdb should attach, this is set by gradle when running in debug mode")
+(defcustom forge-jdb-trigger-re
+  "Listening for transport dt_socket at address: *\\([0-9]+\\)"
+  "The regex used to extract the address to which jdb should attach
+this should have only one group enclosing the address number.")
 
 (defvar current-gradle-w
   nil
@@ -62,6 +63,8 @@
 (defvar current-jdb-w
   nil
   "The jdb window")
+
+;; window & gui handling
 
 (defun forge-create-popup ()
   "Create a window that can accomodate a forge buffer, the window is created from an existing forge window
@@ -95,17 +98,43 @@ if valid, otherwise the top level window is split"
       (set-window-buffer win buffer-name)
       (setq current-jdb-w win))))
 
-(defun exec-gradle-task (command)
+;; buffer content logic
+
+(defun forge-gradle-filter (original-filter proc string)
+  "A custom filter for the gradle process output.
+The filter looks for the string signalling that debugger is listening and jdb can be attached
+and trigger the jdb task to be started correctly."
+  (progn
+    (when (string-match forge-jdb-trigger-re string)
+      (let ((address (match-string 1 string)))
+	(forge-exec-jdb-task address)))
+    (original-filter proc string)))
+
+
+(defun forge-setup-jdb-attach-filter (gradle-process)
+  "Setup a proxy buffer filter for the gradle process that intercepts the output before sending
+it to the default filter, the custom filter looks for the debugger server ready string and attach
+jdb as soon as it is required."
+  (let ((default-filter (process-filter gradle-process)))
+    (set-process-filter gradle-process (apply-partially 'forge-gradle-filter default-filter))))
+
+
+(defun forge-exec-gradle-task (command)
   "Execute a gradle task in the forge gradle temporary buffer"
   (let ((process-handle "forge-gradle")
 	(gradle-command (concat forge-gradle-bin " " command)))
     (start-process-shell-command process-handle forge-gradle-buffer-name gradle-command)))
 
-(defun exec-debugger-task ()
-  "Execute jdb and attach to the address initialised by gradle"
+
+(defun forge-exec-jdb-task (address)
+  "Execute jdb and attach to the address initialised by gradle, then send the run input to
+the process so that the debugging is started automatically."
   (let ((process-handle "forge-jdb")
-	(jdb-command (concat forge-jdb-bin " attach " forge-jdb-address)))
-    (start-process-shell-command process-handle forge-debugger-buffer-name jdb-command)))
+	(jdb-command (concat forge-jdb-bin " -attach " address)))
+    (start-process-shell-command process-handle forge-debugger-buffer-name jdb-command)
+    (process-send-string process-handle "run\r\n")))
+
+;; user interface functions
 
 (defun forge-run-client ()
   "Run minecraft client and load the mod"
@@ -113,7 +142,8 @@ if valid, otherwise the top level window is split"
   (progn
     (get-buffer-create forge-gradle-buffer-name)
     (forge-enable-gradle forge-gradle-buffer-name)
-    (exec-gradle-task "runClient")))
+    (forge-exec-gradle-task "runClient")))
+
 
 (defun forge-debug-client ()
   "Run the minecraft client in debug mode and attach the debugger in a separate comint buffer"
@@ -121,7 +151,7 @@ if valid, otherwise the top level window is split"
   (progn
     (forge-init-buffers)
     (exec-gradle-task "runClient --debug-jvm")
-    (exec-debugger-task)))
+    (forge-setup-jdb-attach-filter)))
   
 
 (defun forge-run-srv ()
@@ -130,6 +160,7 @@ if valid, otherwise the top level window is split"
 (defun forge-debug-srv ()
   nil)
 
+;; keybindings
 
 ;; define a comint mode to control the debugger input
 
