@@ -1,1 +1,10 @@
+
+# Emacs temp files
 *~
+
+# Compiled
+*.elc
+
+# Packaging
+.cask
+
