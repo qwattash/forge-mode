@@ -1,3 +1,5 @@
+;; -*- lexical-binding: t; -*-
+
 ;;
 ;; A minor mode to help development of minecraft mods using MinecraftForge and MCP
 ;;
@@ -44,7 +46,7 @@
   "Key binding for the forge-debug-server function")
 
 (defcustom forge-gradle-bin
-  "echo ./gradlew"
+  "echo ./gradlew Listening for transport dt_socket at address: 5005"
   "The gradle wrapper script in the main project directory")
 
 (defcustom forge-jdb-bin
@@ -100,23 +102,20 @@ if valid, otherwise the top level window is split"
 
 ;; buffer content logic
 
-(defun forge-gradle-filter (original-filter proc string)
+(defun forge-gradle-filter (proc string)
   "A custom filter for the gradle process output.
 The filter looks for the string signalling that debugger is listening and jdb can be attached
 and trigger the jdb task to be started correctly."
-  (progn
-    (when (string-match forge-jdb-trigger-re string)
-      (let ((address (match-string 1 string)))
-	(forge-exec-jdb-task address)))
-    (original-filter proc string)))
+  (when (string-match forge-jdb-trigger-re string)
+    (let ((address (match-string 1 string)))
+      (forge-exec-jdb-task address))))
 
 
 (defun forge-setup-jdb-attach-filter (gradle-process)
   "Setup a proxy buffer filter for the gradle process that intercepts the output before sending
 it to the default filter, the custom filter looks for the debugger server ready string and attach
 jdb as soon as it is required."
-  (let ((default-filter (process-filter gradle-process)))
-    (set-process-filter gradle-process (apply-partially 'forge-gradle-filter default-filter))))
+  (add-function :before (process-filter gradle-process) #'forge-gradle-filter))
 
 
 (defun forge-exec-gradle-task (command)
@@ -131,8 +130,9 @@ jdb as soon as it is required."
 the process so that the debugging is started automatically."
   (let ((process-handle "forge-jdb")
 	(jdb-command (concat forge-jdb-bin " -attach " address)))
-    (start-process-shell-command process-handle forge-debugger-buffer-name jdb-command)
-    (process-send-string process-handle "run\r\n")))
+    (start-process-shell-command process-handle forge-jdb-buffer-name jdb-command)
+    (process-send-string process-handle "run\r\n")
+    (forge-enable-jdb forge-jdb-buffer-name)))
 
 ;; user interface functions
 
@@ -149,9 +149,9 @@ the process so that the debugging is started automatically."
   "Run the minecraft client in debug mode and attach the debugger in a separate comint buffer"
   (interactive)
   (progn
-    (forge-init-buffers)
-    (exec-gradle-task "runClient --debug-jvm")
-    (forge-setup-jdb-attach-filter)))
+    (get-buffer-create forge-gradle-buffer-name)
+    (forge-enable-gradle forge-gradle-buffer-name)
+    (forge-setup-jdb-attach-filter (forge-exec-gradle-task "runClient --debug-jvm"))))
   
 
 (defun forge-run-srv ()
