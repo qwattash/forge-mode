@@ -20,6 +20,13 @@
 ;;     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;; 
 
+;; =============================================================================
+;; Commands description
+;; 
+;; 
+;;
+;;
+;; 
 
 (defcustom forge-gradle-buffer-name
   "*forge-gradle*"
@@ -51,11 +58,6 @@
   "The gradle wrapper script in the main project directory"
   :group 'forge)
 
-(defcustom forge-jdb-bin
-  "echo jdb"
-  "The java debugger binary"
-  :group 'forge)
-
 (defcustom forge-jdb-trigger-re
   "Listening for transport dt_socket at address: *\\([0-9]+\\)"
   "The regex used to extract the address to which jdb should attach
@@ -63,8 +65,9 @@ this should have only one group enclosing the address number."
   :group 'forge)
 
 (defvar forge-jdb-buffer-name
-  "*gud-5005*"
-  "The java debugger buffer")
+  nil
+  "The current java debugger buffer, this is generated in the same way GUD
+names its buffer so we can control where the buffer appears")
 
 (defvar current-gradle-w
   nil
@@ -136,6 +139,7 @@ jdb as soon as it is required."
 (defun forge-exec-jdb-task (address)
   "Execute jdb and attach to the address initialised by gradle, then send the run input to
 the process so that the debugging is started automatically."
+  (setq forge-jdb-buffer-name (format "*gud-%s*" address))
   (let ((jdb-buffer (get-buffer-create forge-jdb-buffer-name)))
     (forge-enable-jdb forge-jdb-buffer-name)
     (with-selected-window (get-buffer-window forge-jdb-buffer-name)
