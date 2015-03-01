@@ -23,40 +23,48 @@
 
 (defcustom forge-gradle-buffer-name
   "*forge-gradle*"
-  "The gradle output buffer")
-
-(defcustom forge-jdb-buffer-name
-  "*forge-dbg*"
-  "The java debugger buffer")
+  "The gradle output buffer"
+  :group 'forge)
 
 (defcustom forge-key-run-client
   ""
-  "Key binding for the forge-run-client function")
+  "Key binding for the forge-run-client function"
+  :group 'forge)
 
 (defcustom forge-key-run-server
   ""
-  "Key binding for the forge-run-server function")
+  "Key binding for the forge-run-server function"
+  :group 'forge)
 
 (defcustom forge-key-debug-client
   ""
-  "Key binding for the forge-debug-client function")
+  "Key binding for the forge-debug-client function"
+  :group 'forge)
 
 (defcustom forge-key-run-server
   ""
-  "Key binding for the forge-debug-server function")
+  "Key binding for the forge-debug-server function"
+  :group 'forge)
 
 (defcustom forge-gradle-bin
   "echo ./gradlew Listening for transport dt_socket at address: 5005"
-  "The gradle wrapper script in the main project directory")
+  "The gradle wrapper script in the main project directory"
+  :group 'forge)
 
 (defcustom forge-jdb-bin
   "echo jdb"
-  "The java debugger binary")
+  "The java debugger binary"
+  :group 'forge)
 
 (defcustom forge-jdb-trigger-re
   "Listening for transport dt_socket at address: *\\([0-9]+\\)"
   "The regex used to extract the address to which jdb should attach
-this should have only one group enclosing the address number.")
+this should have only one group enclosing the address number."
+  :group 'forge)
+
+(defvar forge-jdb-buffer-name
+  "*gud-5005*"
+  "The java debugger buffer")
 
 (defvar current-gradle-w
   nil
@@ -128,11 +136,12 @@ jdb as soon as it is required."
 (defun forge-exec-jdb-task (address)
   "Execute jdb and attach to the address initialised by gradle, then send the run input to
 the process so that the debugging is started automatically."
-  (let ((process-handle "forge-jdb")
-	(jdb-command (concat forge-jdb-bin " -attach " address)))
-    (start-process-shell-command process-handle forge-jdb-buffer-name jdb-command)
-    (process-send-string process-handle "run\r\n")
-    (forge-enable-jdb forge-jdb-buffer-name)))
+  (let ((jdb-buffer (get-buffer-create forge-jdb-buffer-name)))
+    (forge-enable-jdb forge-jdb-buffer-name)
+    (with-selected-window (get-buffer-window forge-jdb-buffer-name)
+      (with-current-buffer jdb-buffer
+	(jdb (concat "jdb -attach " address))
+	(process-send-string (get-buffer-process jdb-buffer) "run\r\n")))))
 
 ;; user interface functions
 
@@ -168,6 +177,7 @@ the process so that the debugging is started automatically."
 
 (define-minor-mode forge-mode
   "A minor mode that helps developing minecraft mods using MinecraftForge and MCP"
-  :lighter "forge-mode")
+  :lighter "forge-mode"
+  :group 'forge)
 
 (provide 'forge-mode)
