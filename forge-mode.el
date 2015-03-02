@@ -102,6 +102,12 @@ if valid, otherwise the top level window is split"
 
 ;; buffer content logic
 
+
+(defun forge-build-command (gradle-task)
+  "Build a directory independant command that runs gradle with the given task"
+  (let ((base (format "cd %s && %s" (file-name-directory forge-gradle-bin) forge-gradle-bin)))
+    (concat base " " gradle-task)))
+
 (defun forge-gradle-filter (proc string)
   "A custom filter for the gradle process output.
 The filter looks for the string signalling that debugger is listening and jdb can be attached
@@ -121,7 +127,7 @@ jdb as soon as it is required."
 (defun forge-exec-gradle-task (command)
   "Execute a gradle task in the forge gradle temporary buffer"
   (let ((process-handle "forge-gradle")
-	(gradle-command (concat forge-gradle-bin " " command)))
+	(gradle-command (forge-build-command command)))
     (start-process-shell-command process-handle forge-gradle-buffer-name gradle-command)))
 
 
@@ -157,28 +163,30 @@ the directory will be used as cwd before executing gradle"
 (defun forge-run-client ()
   "Run minecraft client and load the mod"
   (interactive)
-  (progn
-    (get-buffer-create forge-gradle-buffer-name)
-    (forge-enable-gradle forge-gradle-buffer-name)
-    (forge-exec-gradle-task "runClient")))
+  (get-buffer-create forge-gradle-buffer-name)
+  (forge-enable-gradle forge-gradle-buffer-name)
+  (forge-exec-gradle-task "runClient"))
 
 
 (defun forge-debug-client ()
   "Run the minecraft client in debug mode and attach the debugger in a separate comint buffer"
   (interactive)
-  (progn
-    (get-buffer-create forge-gradle-buffer-name)
-    (forge-enable-gradle forge-gradle-buffer-name)
-    (forge-setup-jdb-attach-filter (forge-exec-gradle-task "runClient --debug-jvm"))))
+  (get-buffer-create forge-gradle-buffer-name)
+  (forge-enable-gradle forge-gradle-buffer-name)
+  (forge-setup-jdb-attach-filter (forge-exec-gradle-task "runClient --debug-jvm")))
   
 
 (defun forge-run-srv ()
   (interactive)
-  nil)
+  (get-buffer-create forge-gradle-buffer-name)
+  (forge-enable-gradle forge-gradle-buffer-name)
+  (forge-exec-gradle-task "runServer"))
 
 (defun forge-debug-srv ()
   (interactive)
-  nil)
+  (get-buffer-create forge-gradle-buffer-name)
+  (forge-enable-gradle forge-gradle-buffer-name)
+  (forge-setup-jdb-attach-filter (forge-exec-gradle-task "runServer --debug-jvm")))
 
 ;; keybindings
 
