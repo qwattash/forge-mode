@@ -23,38 +23,18 @@
 ;; =============================================================================
 ;; Commands description
 ;; 
-;; 
-;;
-;;
-;; 
+;; M-g m Run minecraft client with the mod(s)
+;; M-g d Debug minecraft client with the mod(s)
+;; M-g n Run minecraft server with the mod(s)
+;; M-g e Debug minecraft server with the mod(s)
 
 (defcustom forge-gradle-buffer-name
   "*forge-gradle*"
   "The gradle output buffer"
   :group 'forge)
 
-(defcustom forge-key-run-client
-  ""
-  "Key binding for the forge-run-client function"
-  :group 'forge)
-
-(defcustom forge-key-run-server
-  ""
-  "Key binding for the forge-run-server function"
-  :group 'forge)
-
-(defcustom forge-key-debug-client
-  ""
-  "Key binding for the forge-debug-client function"
-  :group 'forge)
-
-(defcustom forge-key-run-server
-  ""
-  "Key binding for the forge-debug-server function"
-  :group 'forge)
-
 (defcustom forge-gradle-bin
-  "echo ./gradlew Listening for transport dt_socket at address: 5005"
+  "gradlew" ;"echo ./gradlew Listening for transport dt_socket at address: 5005"
   "The gradle wrapper script in the main project directory"
   :group 'forge)
 
@@ -63,6 +43,15 @@
   "The regex used to extract the address to which jdb should attach
 this should have only one group enclosing the address number."
   :group 'forge)
+
+(defcustom forge-search-gradle
+  t
+  "forge-mode will look for the gradle executable in all the parent tree up until the home of the user. 
+The search for the gradle script can be disabled in configuration by setting forge-search-gradle to nil.
+In the latter case the value in forge-gradle bin will be used directly to run the process."
+  :group 'forge)
+
+;; Internal variables
 
 (defvar forge-jdb-buffer-name
   nil
@@ -147,6 +136,22 @@ the process so that the debugging is started automatically."
 	(jdb (concat "jdb -attach " address))
 	(process-send-string (get-buffer-process jdb-buffer) "run\r\n")))))
 
+;; gradle running context
+
+(defun forge-find-gradle (cwd)
+  "Locate the first parent directory containing the gradle script
+the directory will be used as cwd before executing gradle"
+  (let* ((dir-list (directory-files cwd))
+	 (gradle-bin (file-name-nondirectory forge-gradle-bin))
+  	 (full-cwd (expand-file-name cwd))
+	 (parent (file-name-directory (directory-file-name full-cwd)))
+  	 (home (expand-file-name "~")))
+    (if (not (string= (directory-file-name home) (directory-file-name full-cwd)))
+	(if (member gradle-bin dir-list)
+	    (concat (file-name-as-directory full-cwd) gradle-bin)
+	  (forge-get-gradle-base-dir parent))
+      (error "Gradle executable not found"))))
+
 ;; user interface functions
 
 (defun forge-run-client ()
@@ -168,20 +173,27 @@ the process so that the debugging is started automatically."
   
 
 (defun forge-run-srv ()
+  (interactive)
   nil)
 
 (defun forge-debug-srv ()
+  (interactive)
   nil)
 
 ;; keybindings
-
-;; define a comint mode to control the debugger input
-
 
 
 (define-minor-mode forge-mode
   "A minor mode that helps developing minecraft mods using MinecraftForge and MCP"
   :lighter "forge-mode"
-  :group 'forge)
+  :group 'forge
+  :keymap (let ((map (make-sparse-keymap)))
+	    (define-key map (kbd "M-g m") 'forge-run-client)
+	    (define-key map (kbd "M-g d") 'forge-debug-client)
+	    (define-key map (kbd "M-g n") 'forge-run-srv)
+	    (define-key map (kbd "M-g e") 'forge-debug-srv)
+	    map)
+  (if forge-search-gradle
+      (setq forge-gradle-bin (forge-find-gradle "."))))
 
 (provide 'forge-mode)
