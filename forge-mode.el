@@ -193,7 +193,7 @@ the directory will be used as cwd before executing gradle"
 
 (define-minor-mode forge-mode
   "A minor mode that helps developing minecraft mods using MinecraftForge and MCP"
-  :lighter "forge-mode"
+  :lighter " forge-mode"
   :group 'forge
   :keymap (let ((map (make-sparse-keymap)))
 	    (define-key map (kbd "M-g m") 'forge-run-client)
