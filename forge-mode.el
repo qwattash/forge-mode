@@ -4,6 +4,8 @@
 ;; A minor mode to help development of minecraft mods using MinecraftForge and MCP
 ;;
 ;; Author: Alfredo Mazzinghi (qwattash)
+;;
+;; Fix by Joh11
 ;; 
 ;; License: GPLv3
 ;; This program is free software: you can redistribute it and/or modify
