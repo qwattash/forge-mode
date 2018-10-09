@@ -4,6 +4,8 @@
 ;; A minor mode to help development of minecraft mods using MinecraftForge and MCP
 ;;
 ;; Author: Alfredo Mazzinghi (qwattash)
+;;
+;; Fix by Joh11
 ;; 
 ;; License: GPLv3
 ;; This program is free software: you can redistribute it and/or modify
@@ -142,20 +144,27 @@ the process so that the debugging is started automatically."
 	(jdb (concat "jdb -attach " address))
 	(process-send-string (get-buffer-process jdb-buffer) "run\r\n")))))
 
+;; Misc utility functions
+
+(defun dir= (dir1 dir2)
+  "Compare if the two directories are equal, expanding them into their respective canonical paths"
+  (string= (directory-file-name (expand-file-name dir1))
+	   (directory-file-name (expand-file-name dir2))))
+
 ;; gradle running context
 
 (defun forge-find-gradle (cwd)
   "Locate the first parent directory containing the gradle script
 the directory will be used as cwd before executing gradle"
-  (let* ((dir-list (directory-files cwd))
-	 (gradle-bin (file-name-nondirectory forge-gradle-bin))
-  	 (full-cwd (expand-file-name cwd))
-	 (parent (file-name-directory (directory-file-name full-cwd)))
-  	 (home (expand-file-name "~")))
-    (if (not (string= (directory-file-name home) (directory-file-name full-cwd)))
-	(if (member gradle-bin dir-list)
+  (let* ((dir-list (directory-files cwd))                              ; list all files and directories in the current dir
+	 (gradle-bin (file-name-nondirectory forge-gradle-bin))        ; take only the name of the gradle binary file
+  	 (full-cwd (expand-file-name cwd))                             ; expand to the full, canonical path to the current dir
+	 (parent (file-name-directory (directory-file-name full-cwd))) ; parent is the parent directory of the current dir
+  	 (home (expand-file-name "~")))                                ; just to get the highest point before stopping climbing the hierarchy of directories
+    (if (not (dir= home full-cwd)) ; if we went up to home, then stop and report error
+	(if (member gradle-bin dir-list) ; if the gradle binary is inside our directory : bingo ! 
 	    (concat (file-name-as-directory full-cwd) gradle-bin)
-	  (forge-get-gradle-base-dir parent))
+	  (forge-find-gradle parent)) ; else just try it with the parent dir
       (error "Gradle executable not found"))))
 
 ;; user interface functions
